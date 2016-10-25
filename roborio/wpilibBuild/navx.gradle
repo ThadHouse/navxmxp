@@ -1,0 +1,192 @@
+defineWpiUtilProperties()
+defineHALProperties()
+defineNetworkTablesProperties()
+defineWpiLibProperties()
+
+def navxSetupModel = { project ->
+    project.model {
+        components {
+            navx(NativeLibrarySpec) {
+                targetPlatform 'arm'
+                setupDefines(project, binaries)
+
+                binaries.all {
+                    tasks.withType(CppCompile) {
+                        addUserLinks(linker, targetPlatform, false)
+                        addHalLibraryLinks(it, linker, targetPlatform)
+                        addWpiUtilLibraryLinks(it, linker, targetPlatform)
+                        addNetworkTablesLibraryLinks(it, linker, targetPlatform)
+                        addWpilibLibraryLinks(it, linker, targetPlatform)
+                    }
+                }
+
+                sources {
+                    cpp {
+                        source {
+                            srcDirs = ["${rootDir}/../c++/navx_frc_cpp/src"]
+                            includes = ["**/*.cpp"]
+                        }
+                        exportedHeaders {
+                            srcDirs = ["${rootDir}/../c++/navx_frc_cpp/include", "${rootDir}/../c++/navx_frc_cpp/src", wpilibInclude, halInclude, wpiUtilInclude, netTablesInclude]
+                            includes = ['**/*.h']
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+def navxZipTask = { project ->
+    project.ext.navxZip = project.tasks.create("navxZip", Zip) {
+        description = 'Creates platform-specific zip of the desktop navx libraries.'
+        group = 'WPILib'
+        destinationDir = releaseDir
+        baseName = 'navx-cpp'
+        duplicatesStrategy = 'exclude'
+
+        // Copy include files from project
+        from(file('navx/include')) {
+            into 'include'
+        }
+
+        // Copy shared and static binaries from this project
+        project.model {
+            binaries {
+                withType(StaticLibraryBinarySpec) { binary ->
+                    from(binary.staticLibraryFile) {
+                        into 'lib'
+                    }
+                }
+                withType(SharedLibraryBinarySpec) { binary ->
+                    from(binary.sharedLibraryFile) {
+                        into 'lib'
+                    }
+                    def debugFile = new File(binary.sharedLibraryFile.absolutePath + ".debug")
+                      from(debugFile) {
+                          into 'lib'
+                      }
+                }
+            }
+        }
+        
+        /// Copy included driver library headers
+        from(file('libraries/navxDriver/include')) {
+            into 'include'
+        }
+        
+        // Copy included driver library binaries
+        from(file('libraries/navxDriver/lib')) {
+            include '*.so*'
+            include '*.a*'
+            into 'lib'
+        }
+    }
+
+    project.build.dependsOn project.navxZip
+
+    project.debugStripSetup()
+
+    project.tasks.whenTaskAdded { task ->
+        def name = task.name.toLowerCase()
+        if (name.contains("navxsharedlibrary") || name.contains("navxstaticlibrary")) {
+            project.navxZip.dependsOn task
+        }
+    }
+}
+
+def JavaZipTask = { project ->
+    project.ext.JavaZip = project.tasks.create("JavaZip", Zip) {
+        description = 'Creates a zip of the Java libraries.'
+        group = 'WPILib'
+        destinationDir = releaseDir
+        baseName = 'navx-java'
+        duplicatesStrategy = 'exclude'
+        dependsOn { project.jar }
+        dependsOn { project.navxJavadoc }
+      
+
+        // Copy project java binary
+        from project.jar.outputs.files {
+            include '*.jar'
+            into '/'
+        }
+
+        // Copy project java javadocs
+        from project.navxJavadoc.outputs.files {
+            include '*.jar'
+            into '/'
+        }
+    }
+    
+    project.build.dependsOn project.JavaZip
+    
+    project.debugStripSetup()
+    
+    project.tasks.whenTaskAdded { task ->
+        def name = task.name.toLowerCase()
+        if (name.contains("navxdriversharedlibrary") || name.contains("navxdriversharedlibrary")) {
+            project.JavaZip.dependsOn task
+        }
+    }
+}
+
+def JavaSourceZipTask = { project ->
+    project.ext.JavaZip = project.tasks.create("JavaSourceZip", Zip) {
+      description = 'Creates a zip of the Java sources.'
+      group = 'WPILib'
+      destinationDir = releaseDir
+      baseName = 'navx-javasources'
+      duplicatesStrategy = 'exclude'
+      dependsOn { project.navxJavaSource }
+
+      from project.navxJavaSource.outputs.files {
+          include '*.jar'
+          include '*.so*'
+          into '/'
+      }
+    }
+    
+    project.build.dependsOn project.JavaZip
+    
+    project.debugStripSetup()
+    
+    project.tasks.whenTaskAdded { task ->
+        def name = task.name.toLowerCase()
+        if (name.contains("navxdriversharedlibrary") || name.contains("navxdriversharedlibrary")) {
+            project.JavaZip.dependsOn task
+        }
+    }
+}
+
+project(':arm:navx') {
+    apply plugin: 'cpp'
+
+    apply from: "${rootDir}/toolchains/arm.gradle"
+    
+    if (includeJava) {
+        apply from: "${rootDir}/java/java.gradle"
+    }
+
+    navxSetupModel(project)
+    navxZipTask(project)
+    JavaZipTask(project)
+    JavaSourceZipTask(project)
+}
+
+task navxSourceZip(type: Zip) {
+    description = 'Creates a sources-zip of the navx source files'
+    group = 'WPILib'
+    destinationDir = releaseDir
+    baseName = 'navx'
+    classifier = "cppsources"
+    duplicatesStrategy = 'exclude'
+
+    from("${rootDir}/../c++/navx_frc_cpp/src") {
+        into 'src'
+    }
+
+    from("${rootDir}/../c++/navx_frc_cpp/include") {
+        into 'include'
+    }
+}

@@ -8,6 +8,9 @@
 #include <RegisterIO.h>
 #include "IMURegisters.h"
 
+#include <chrono>
+#include <thread>
+
 RegisterIO::RegisterIO( IRegisterIO *io_provider,
         uint8_t update_rate_hz,
         IIOCompleteNotification *notify_sink,
@@ -80,7 +83,7 @@ void RegisterIO::Run() {
             SetUpdateRateHz(this->update_rate_hz);
         }
         GetCurrentData();
-        delayMillis(update_rate_ms);
+        std::this_thread::sleep_for(std::chrono::milliseconds((static_cast<int>(update_rate_ms))));
     }
 }
 
@@ -112,7 +115,7 @@ bool RegisterIO::GetConfiguration() {
             success = true;
         } else {
             success = false;
-            delayMillis(50);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
         retry_count++;
     }

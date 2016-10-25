@@ -1,0 +1,132 @@
+import org.gradle.internal.os.OperatingSystem
+
+apply plugin: 'java'
+apply plugin: 'net.ltgt.errorprone'
+
+repositories {
+    mavenCentral()
+}
+
+configurations.errorprone {
+    resolutionStrategy.force 'com.google.errorprone:error_prone_core:2.0.9'
+}
+
+def generatedJNIHeaderLoc = "${buildDir}/include"
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ["${rootDir}/../java/navx_frc/src", "${rootDir}/../../java/navx/src"]
+        }
+    }
+    }
+    
+dependencies {
+     compile 'edu.wpi.first.wpilibj:athena:2017.+'
+     runtime 'edu.wpi.first.wpilibj:athena:2017.+'
+}
+
+jar {
+    description = 'Generates navx jar'
+    baseName = 'navx_frc'
+    duplicatesStrategy = 'exclude'
+
+    dependsOn { classes }
+
+    from (file('../../../java/navx_frc/src')) {
+        include 'overview.htm'
+        into '/'
+    }
+    
+    from (file('../../../java/navx_frc/src/docs')) {
+        into 'docs'
+    }
+}
+
+project.tasks.whenTaskAdded { task ->
+        if (task.name == 'navxSharedLibrary') jar.dependsOn task
+}
+
+task navxJavaSource(type: Jar, dependsOn: classes) {
+    description = 'Generates the source jar for navx java'
+    group = 'WPILib'
+    baseName = 'navx'
+    classifier = "sources"
+    duplicatesStrategy = 'exclude'
+
+    from sourceSets.main.allJava
+}
+
+task navxJavadoc(type: Jar, dependsOn: javadoc) {
+    description = 'Generates the javadoc jar for navx java'
+    group = 'WPILib'
+    baseName = 'navx'
+    classifier = "javadoc"
+    duplicatesStrategy = 'exclude'
+
+    from javadoc.destinationDir
+}
+
+task copyJarToNavXFrc(type: Copy, dependsOn: jar) {
+    description = 'Moves the jar to the location the build system expects'
+    group = 'wpilib'
+    
+    from (jar) {
+        include "*.jar"
+    }
+    into '../../../java/navx_frc/jar'
+}
+
+build.dependsOn copyJarToNavXFrc
+build.dependsOn navxJavaSource
+build.dependsOn navxJavadoc
+
+/**
+ * Generates the JNI headers
+ */
+task jniHeadersnavx {
+    description = 'Generates JNI headers from edu.wpi.first.wpilibj.navx.*'
+    group = 'WPILib'
+    def outputFolder = file(generatedJNIHeaderLoc)
+    inputs.files sourceSets.main.output
+    outputs.file outputFolder
+    doLast {
+        outputFolder.mkdirs()
+    }
+}
+
+clean {
+    delete generatedJNIHeaderLoc
+}
+
+compileJava {
+    options.compilerArgs << '-Xlint:unchecked'
+}
+
+javadoc {
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+// This creates a lambda that the main build.gradle can access, which sets up the JNI includes for the
+// target build platform. This lambda is exposed as a property in the main build.gradle.
+ext.setupJniIncludes = { binaries ->
+    def platformSpecificIncludeFlag = { loc, cppCompiler ->
+        if (OperatingSystem.current().isWindows()) {
+            cppCompiler.args "/I$loc"
+        } else {
+            cppCompiler.args '-I', loc
+        }
+    }
+    binaries.all {
+        tasks.withType(CppCompile) {
+            cppCompiler.args '-I', file("${rootDir}/java/arm-linux").absolutePath
+            cppCompiler.args '-I', file("${rootDir}/java/arm-linux/linux").absolutePath
+
+            jniHeadersnavx.outputs.files.each { file ->
+                cppCompiler.args '-I', file.getPath()
+            }
+
+            dependsOn jniHeadersnavx
+        }
+    }
+}

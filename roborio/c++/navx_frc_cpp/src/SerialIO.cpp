@@ -7,6 +7,9 @@
 
 #include <SerialIO.h>
 
+#include <chrono>
+#include <thread>
+
 static const double IO_TIMEOUT_SECONDS = 1.0;
 
 #define SERIALIO_DASHBOARD_DEBUG
@@ -192,7 +195,7 @@ void SerialIO::Run() {
             }
 
             if ( !stop && ( remainder_bytes == 0 ) && ( serial_port->GetBytesReceived() < 1 ) ) {
-                delayMillis(1000/update_rate_hz);
+                std::this_thread::sleep_for(std::chrono::milliseconds((1000/update_rate_hz)));
             }
 
             int packets_received = 0;
@@ -449,7 +452,7 @@ void SerialIO::Run() {
                 else {
                     // If no bytes remain in the buffer, and not awaiting a response, sleep a bit
                     if ( stream_response_received && ( serial_port->GetBytesReceived() == 0 ) ) {
-                        delayMillis(1000/update_rate_hz);
+                        std::this_thread::sleep_for(std::chrono::milliseconds((1000/update_rate_hz)));
                     }
                 }
 

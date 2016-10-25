@@ -13,11 +13,11 @@ call ant clean build
 popd
 
 REM
-REM Begin a command-line "clean build" of the navx frc java library
+REM Begin a command-line "clean build" of the navx frc libraries
 REM
 
-pushd .\roborio\java\navx_frc
-call ant clean build
+pushd .\roborio\wpilibBuild
+gradlew clean build
 popd
 
 REM
@@ -33,13 +33,6 @@ cp ./stm32/navx-mxp/AHRS*.h ./roborio/c++/navx_frc_cpp/src
 REM
 REM Begin a command-line "clean build" of the navx frc C++ library
 REM
-
-pushd .\roborio\c++
-REM rm -r -f ./build_workspace_luna
-mkdir build_workspace_luna
-
-%ECLIPSEC_MARS% -nosplash -application org.eclipse.cdt.managedbuilder.core.headlessbuild -data ./build_workspace_luna -import ./navx_frc_cpp -cleanBuild navx_frc_cpp/Debug
-popd
 
 REM
 REM Copy navx protocol java library file to project folders that need it.
